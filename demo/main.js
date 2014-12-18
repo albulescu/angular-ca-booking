@@ -1,11 +1,13 @@
-angular.module('demo', ['ca.schedule'])
+angular.module('demo', ['ca.schedule','ca.console'])
 
+.config(function($consoleProvider) {
+    $consoleProvider.overrideBrowserConsole();
+})
 
-.controller('DemoScheduleController', function($scope){
+.controller('DemoScheduleController', function($scope, $console){
 
-    
     $scope.init = function() {
-        console.log('init');
+        $console.show();
     };
 
     $scope.ready = function() {
@@ -14,6 +16,6 @@ angular.module('demo', ['ca.schedule'])
 
     
     $scope.onSchedule = function( event ) {
-        alert('Book from ' + event.from + ' to ' + event.to + ' in date ' + event.date);
+        console.log('Book from ' + event.from + ' to ' + event.to + ' in date ' + event.date);
     };
 });
