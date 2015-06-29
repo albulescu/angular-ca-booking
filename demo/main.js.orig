@@ -6,8 +6,11 @@ angular.module('demo', ['ca.schedule','ca.console'])
 
 .controller('DemoScheduleController', function($scope, $console){
 
+<<<<<<< HEAD
     $scope.userStep = '30m';
     
+=======
+>>>>>>> d26a9c91abfec05f124a93355a02ca8d53fd5b92
     $scope.init = function() {
         $console.show();
     };
