@@ -12,7 +12,15 @@
     </head>
 
     <body ng-app="demo" ng-controller="DemoScheduleController" ng-init="init()">
+        Slot duration:
+        <select ng-model="userStep">
+            <option value="30m">30 minutes</option>
+            <option value="1h">1 hour</option>
+            <option value="2h">2 hours</option>
+        </select>
+        <hr/>
         <schedule on-book="onSchedule($event,$data)"
+                  step="{{userStep}}"
                   scrolling="true"
                   interval="true"
                   ready="ready()"></schedule>

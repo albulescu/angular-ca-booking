@@ -2,6 +2,30 @@
 
 angular.module('ca.schedule')
 
+.factory('TimeUtils', function(){
+    return {
+        zeroFill: function(n) {
+            return (n < 10) ? ('0'+n) : n;
+        },
+        addTime: function(to,mins){
+            return this.toString(this.toMinutes(to)+mins);
+        },
+        toString: function(minutes){
+            return this.zeroFill(Math.floor(minutes/60)) +':'+this.zeroFill(minutes % 60);
+        },
+        toMinutes: function(time){
+            if(time.length != 5){
+                throw new Error("Invalid time string length");
+            }
+            if(!(time||"").match(/^([0-9]+):([0-9]+)$/)){
+                throw new Error("Invalid time string");
+            }
+            var p=time.split(':');
+            return parseInt(p[0],10) * 60 + parseInt(p[1],10);
+        }
+    };
+})
+
 .factory('ScheduleTime', function() {
 
     /**

@@ -3,6 +3,7 @@ angular.module('demo', ['ca.schedule'])
 
 .controller('DemoScheduleController', function($scope){
 
+    $scope.userStep = '30m';
     
     $scope.init = function() {
         console.log('init');

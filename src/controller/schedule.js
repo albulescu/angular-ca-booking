@@ -2,7 +2,7 @@
 
 angular.module('ca.schedule',['ca.schedule.templates'])
 
-.controller('BookingController', function( $scope, $injector, $filter, $compile, $document, $timeout, $element, $log, ScheduleTime ){
+.controller('BookingController', function( $scope, $injector, $filter, $compile, $document, $timeout, $element, $log, ScheduleTime, TimeUtils ){
 
     var self = this;
 
@@ -151,6 +151,8 @@ angular.module('ca.schedule',['ca.schedule.templates'])
         if( angular.isUndefined(ustep) ) {
             return;
         }
+
+        clearSelection();
 
         var reg = /^(\d+)(h|m)$/;
         var minutes = 0;
@@ -331,8 +333,8 @@ angular.module('ca.schedule',['ca.schedule.templates'])
             }
         });
 
-        if(!canSelect) 
-{            return false;
+        if(!canSelect) {
+            return false;
         }
 
         for (var i = 0; i < tds.length; i++) {
@@ -366,7 +368,7 @@ angular.module('ca.schedule',['ca.schedule.templates'])
 
         var date = $scope.dates[ $scope.startCell.index() - 1 ];
         
-        trigger( date, $scope.startCell.data('time'), cell.data('time') );
+        trigger( date, JSON.parse($scope.startCell.data('time')), getCellEndTime(cell) );
 
         $scope.startCell = null;
 
@@ -421,6 +423,11 @@ angular.module('ca.schedule',['ca.schedule.templates'])
 
             $scope.$digest();
         });
+    };
+
+    var getCellEndTime = function(cell){
+        var time = JSON.parse(cell.data('time'));
+        return TimeUtils.addTime(time, $scope.step);
     };
 
     //Expose clearing method to controller instance
@@ -504,7 +511,7 @@ angular.module('ca.schedule',['ca.schedule.templates'])
         $document.unbind( 'mousemove', onBookMove );
         $document.unbind( 'mouseup', onCellUp );
 
-        trigger(date, time, time);
+        trigger(date, time, getCellEndTime(cell));
     };
 
     $scope.init = function() {

@@ -18,7 +18,7 @@ $templateCache.put('ca-schedule/directive/schedule.html',
 
 angular.module('ca.schedule',['ca.schedule.templates'])
 
-.controller('BookingController', ["$scope", "$injector", "$filter", "$compile", "$document", "$timeout", "$element", "$log", "ScheduleTime", function( $scope, $injector, $filter, $compile, $document, $timeout, $element, $log, ScheduleTime ){
+.controller('BookingController', ["$scope", "$injector", "$filter", "$compile", "$document", "$timeout", "$element", "$log", "ScheduleTime", "TimeUtils", function( $scope, $injector, $filter, $compile, $document, $timeout, $element, $log, ScheduleTime, TimeUtils ){
 
     var self = this;
 
@@ -167,6 +167,8 @@ angular.module('ca.schedule',['ca.schedule.templates'])
         if( angular.isUndefined(ustep) ) {
             return;
         }
+
+        clearSelection();
 
         var reg = /^(\d+)(h|m)$/;
         var minutes = 0;
@@ -347,8 +349,8 @@ angular.module('ca.schedule',['ca.schedule.templates'])
             }
         });
 
-        if(!canSelect) 
-{            return false;
+        if(!canSelect) {
+            return false;
         }
 
         for (var i = 0; i < tds.length; i++) {
@@ -382,7 +384,7 @@ angular.module('ca.schedule',['ca.schedule.templates'])
 
         var date = $scope.dates[ $scope.startCell.index() - 1 ];
         
-        trigger( date, $scope.startCell.data('time'), cell.data('time') );
+        trigger( date, JSON.parse($scope.startCell.data('time')), getCellEndTime(cell) );
 
         $scope.startCell = null;
 
@@ -437,6 +439,11 @@ angular.module('ca.schedule',['ca.schedule.templates'])
 
             $scope.$digest();
         });
+    };
+
+    var getCellEndTime = function(cell){
+        var time = JSON.parse(cell.data('time'));
+        return TimeUtils.addTime(time, $scope.step);
     };
 
     //Expose clearing method to controller instance
@@ -520,7 +527,7 @@ angular.module('ca.schedule',['ca.schedule.templates'])
         $document.unbind( 'mousemove', onBookMove );
         $document.unbind( 'mouseup', onCellUp );
 
-        trigger(date, time, time);
+        trigger(date, time, getCellEndTime(cell));
     };
 
     $scope.init = function() {
@@ -564,7 +571,7 @@ angular.module('ca.schedule')
         scope : { 
             from: '=?',
             to: '=?',
-            userStep: '=step',
+            userStep: '@step',
             userDate:'=date',
             availability:'=',
             callback:'&onBook',
@@ -614,6 +621,30 @@ angular.module('ca.schedule')
 
 
 angular.module('ca.schedule')
+
+.factory('TimeUtils', function(){
+    return {
+        zeroFill: function(n) {
+            return (n < 10) ? ('0'+n) : n;
+        },
+        addTime: function(to,mins){
+            return this.toString(this.toMinutes(to)+mins);
+        },
+        toString: function(minutes){
+            return this.zeroFill(Math.floor(minutes/60)) +':'+this.zeroFill(minutes % 60);
+        },
+        toMinutes: function(time){
+            if(time.length != 5){
+                throw new Error("Invalid time string length");
+            }
+            if(!(time||"").match(/^([0-9]+):([0-9]+)$/)){
+                throw new Error("Invalid time string");
+            }
+            var p=time.split(':');
+            return parseInt(p[0],10) * 60 + parseInt(p[1],10);
+        }
+    };
+})
 
 .factory('ScheduleTime', function() {
 

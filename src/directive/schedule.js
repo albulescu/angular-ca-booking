@@ -11,7 +11,7 @@ angular.module('ca.schedule')
         scope : { 
             from: '=?',
             to: '=?',
-            userStep: '=step',
+            userStep: '@step',
             userDate:'=date',
             availability:'=',
             callback:'&onBook',
