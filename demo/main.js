@@ -8,8 +8,14 @@ angular.module('demo', ['ca.schedule','ca.console'])
 
     $scope.userStep = '30m';
     
+    $scope.slots = null;
+
     $scope.init = function() {
         $console.show();
+
+        $scope.$watch('slots',function(s){
+            $console.log(s);
+        });
     };
 
     $scope.ready = function() {

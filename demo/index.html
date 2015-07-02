@@ -19,8 +19,9 @@
             <option value="2h">2 hours</option>
         </select>
         <hr/>
-        <schedule on-book="onSchedule($event,$data)"
+        <schedule on-create-slot="onSchedule($slot)"
                   step="{{userStep}}"
+                  slots="slots"
                   scrolling="true"
                   interval="true"
                   ready="ready()"></schedule>

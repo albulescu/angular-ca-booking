@@ -10,7 +10,7 @@
 
 angular.module('ca.schedule.templates', []).run(['$templateCache', function($templateCache) {
 $templateCache.put('ca-schedule/directive/schedule.html',
-    "<div class=ca-schedule ng-init=init()><table cellspacing=0 cellpading=0><tr class=date-row><td class=\"info-cell empty-cell\"></td><td class=\"info-cell date-cell\" ng-repeat=\"day in days\">{{day}}</td></tr><tr class=date-row><td class=\"info-cell empty-cell\"></td><td class=\"info-cell date-cell\" ng-repeat=\"date in dates\">{{date|date}}</td></tr><tr ng-repeat=\"time in hours track by time.minutes\" ng-class=\"{'not-sharp':!time.sharp}\"><td class=\"info-cell time-cell\">{{time.nice}}</td><td schedule-slot=\"[date, time]\" data-time={{time}} ng-repeat=\"date in dates\" ng-click=\"clearSelection(); book( $event, date, time )\" hover-class=schedule-cell-hover class=schedule-cell ng-mouseover=cellover($event) ng-mouseout=cellout($event) ng-mousedown=celldown($event)></td></tr></table></div>"
+    "<div class=ca-schedule ng-init=init()><table cellspacing=0 cellpading=0><tr class=date-row><td class=\"info-cell empty-cell\"></td><td class=\"info-cell date-cell\" ng-repeat=\"day in days\">{{day}}</td></tr><tr class=date-row><td class=\"info-cell empty-cell\"></td><td class=\"info-cell date-cell\" ng-repeat=\"date in dates\">{{date|date}}</td></tr><tr ng-repeat=\"time in hours track by time.minutes\" ng-class=\"{'not-sharp':!time.sharp}\"><td class=\"info-cell time-cell\">{{time.nice}}</td><td schedule-slot=\"[date, time]\" data-time={{time}} ng-repeat=\"date in dates\" ng-click=book($event,date,time) hover-class=schedule-cell-hover class=schedule-cell ng-mouseover=cellover($event) ng-mouseout=cellout($event) ng-mousedown=onCellDown($event)></td></tr></table></div>"
   );
 
 }]);
@@ -83,6 +83,24 @@ angular.module('ca.schedule',['ca.schedule.templates'])
     $scope.interval = false;
 
     $scope.useAmPm = true;
+
+    $scope.slots = [];
+
+    var table = $element.find('table:eq(0)');
+
+    var tds=[];
+
+    var Slot = function(date,from,to) {
+        Object.defineProperty(this,"from",{"get":function(){
+            return from;
+        }});
+        Object.defineProperty(this,"to",{"get":function(){
+            return to;
+        }});
+        Object.defineProperty(this,"date",{"get":function(){
+            return date;
+        }});
+    };
 
     /**
      * Updates hours array used in ng-repeat
@@ -168,8 +186,6 @@ angular.module('ca.schedule',['ca.schedule.templates'])
             return;
         }
 
-        clearSelection();
-
         var reg = /^(\d+)(h|m)$/;
         var minutes = 0;
         var step;
@@ -220,6 +236,15 @@ angular.module('ca.schedule',['ca.schedule.templates'])
         else {
             $log.warn('Invalid step expression: Example: 1h, 30m Received:', ustep);
         }
+    };
+
+    var onNgModelController = function(ctrl){
+        
+        if(!ctrl)return;
+
+        ctrl.$render = function(){
+            $scope.slots = ngModel.$viewValue;
+        };
     };
 
 
@@ -300,16 +325,52 @@ angular.module('ca.schedule',['ca.schedule.templates'])
         return false;
     };
 
+
+    /**
+     * Called when booking cell down to start interval selection process
+     * @param  {Event}
+     * @return {void}
+     */
+    $scope.onCellDown = function( event ) {
+
+        if( angular.isDefined($scope.allowInterval) && $scope.allowInterval === false ) {
+            $log.warn('Interval selection is disabled');
+            return;
+        }
+
+        $scope.startCell = angular.element(event.currentTarget);
+
+        if(isBooked($scope.startCell)){
+            $log.warn('This slot already booked');
+            return;
+        }
+
+        if(!isAvailable($scope.startCell)) {
+            $log.warn('This slot is not a valid booking slot');
+            $scope.startCell = null;
+            return;
+        }
+
+        $document.bind( 'mousemove', onCellMove );
+        $document.bind( 'mouseup', onCellUp );
+    };
+
     /**
      * Mouse move event to calculate path from one hour to another in interval selection mode
      * @param  {Event}
      * @return {void}
      */
-    var onBookMove = function(event) {
+    var onCellMove = function(event) {
 
         var cell = angular.element(event.originalEvent.target);
 
-        if(!cell.hasClass('schedule-cell') || !$scope.startCell || !cell.hasClass('available')) {
+        if(!$scope.startCell) {
+            throw new Error("Listening on moving event without starting point.");
+        }
+
+        if( !isAvailable(cell) ||
+            !onSlot(event) ){
+            $log.warn('Moving on invalid slot cell');
             return;
         }
 
@@ -318,11 +379,15 @@ angular.module('ca.schedule',['ca.schedule.templates'])
         var startIndex = $scope.startCell.parent().index();
         var endIndex = cell.parent().index();
 
-        var table = cell.parents('table:eq(0)');
+        console.log(startIndex+'-'+endIndex);
 
-        table.find('.schedule-cell-selected').removeClass('schedule-cell-selected');
+        var canSelect = true, from, to;
 
-        var tds = [], canSelect = true, from, to;
+        for (var i = 0; i < tds.length; i++) {
+            tds[i].removeClass('schedule-cell-selecting');
+        }
+
+        tds = [];
 
         table.find('tr').each(function(index, tr){
 
@@ -337,7 +402,7 @@ angular.module('ca.schedule',['ca.schedule.templates'])
             if( index >= from && index <= to ) {
                 
                 //take td
-                var td = angular.element(tr).find('td').eq(cell.index());
+                var td = angular.element(tr).find('td').eq($scope.startCell.index());
                 
                 //add selected td
                 tds.push(td);
@@ -354,9 +419,10 @@ angular.module('ca.schedule',['ca.schedule.templates'])
         }
 
         for (var i = 0; i < tds.length; i++) {
-            tds[i].addClass('schedule-cell-selected');
+            tds[i].addClass('schedule-cell-selecting');
         }
     };
+
 
     /**
      * Trigged on mouse up event
@@ -371,15 +437,20 @@ angular.module('ca.schedule',['ca.schedule.templates'])
         
         var cell = angular.element(event.originalEvent.target);
         
-        if( $scope.startCell[0] === cell[0]) {
+        if( $scope.startCell[0] === cell[0]) {  
             return;
         }
 
-        $document.unbind( 'mousemove', onBookMove );
+        $document.unbind( 'mousemove', onCellMove );
         $document.unbind( 'mouseup', onCellUp );
 
-        if(!cell.hasClass('available')) {
-            return clearSelection();
+        if(!onSlot(event) || !pendingSlotIsFree()){
+            cleanPendingSlot();
+            return;
+        }
+
+        if(!isAvailable(cell)) {
+            return;
         }
 
         var date = $scope.dates[ $scope.startCell.index() - 1 ];
@@ -389,6 +460,8 @@ angular.module('ca.schedule',['ca.schedule.templates'])
         $scope.startCell = null;
 
         $scope.interval = false;
+
+        setPendingSlotDone();
 
     };
 
@@ -407,23 +480,74 @@ angular.module('ca.schedule',['ca.schedule.templates'])
             to: to || null
         };
 
+        var slot = new Slot(date,from,to);
+
         ($scope.callback || angular.noop)({
-            $data : data,
-            $event : data
+            $slot : slot
         });
+
+        if( $scope.ngModel ){
+            $scope.ngModel.$setViewValue($data.slots);
+        }
+
+        $scope.slots.push(slot);
     };
 
-    /**
-     * Clear booking selection
-     * @return {void}
-     */
-    var clearSelection = function() {
-        $element.find('.schedule-cell-selected')
-                .removeClass('schedule-cell-selected');
+    var isBooked = function(cell){
+        return angular.element(cell).hasClass('schedule-cell-selected');
+    };
+
+    var isAvailable = function(cell){
+        return angular.element(cell).hasClass('available');
+    };
+
+    var pendingSlotIsFree = function(){
+        
+        for (var i = 0; i < tds.length; i++) {
+            if( isBooked(tds[i]) ){
+                return false;
+            }
+        }
+
+        return true;
+    };
+
+    var onSlot = function( event ){
+
+        var cell = event.originalEvent.target;
+        var celle = angular.element(cell);
+
+        if( cell.nodeName != 'TD' ||
+            !celle.hasClass('schedule-cell')){
+            return false;
+        }
+
+        var parents = celle.parents();
+
+        if(parents.index(cell.parent) == -1){
+            return false;
+        }
+
+        return true;
+    };
+
+    var cleanPendingSlot = function(){
+        for (var i = 0; i < tds.length; i++) {
+            tds[i].removeClass('schedule-cell-selecting');
+        }
+        tds=[];
+    };
+
+    var setPendingSlotDone = function(){
+        for (var i = 0; i < tds.length; i++) {
+            tds[i].removeClass('schedule-cell-selecting')
+                  .addClass('schedule-cell-selected');
+        }
+        tds=[];
     };
 
     var enableMouseScrolling = function() {
-        $element.find('table').bind('mousewheel', function(event){
+        table.bind('mousewheel', function(event){
             
             event.preventDefault();
             
@@ -446,9 +570,6 @@ angular.module('ca.schedule',['ca.schedule.templates'])
         return TimeUtils.addTime(time, $scope.step);
     };
 
-    //Expose clearing method to controller instance
-    this.clear = clearSelection;
-
     /**
      * Called when booking cell over
      * @param  {Event}
@@ -458,7 +579,7 @@ angular.module('ca.schedule',['ca.schedule.templates'])
         var cell = angular.element(event.currentTarget);
         if(!cell.hasClass('available')){ return; }
         cell.parent().first().addClass('info-cell-highlight');
-        var daterows = cell.parents('table').find('.date-row');
+        var daterows = table.find('.date-row');
         daterows.eq(0).find('td').eq( cell.index() ).addClass('info-cell-highlight');
         daterows.eq(1).find('td').eq( cell.index() ).addClass('info-cell-highlight');
     };
@@ -472,31 +593,9 @@ angular.module('ca.schedule',['ca.schedule.templates'])
         var cell = angular.element(event.currentTarget);
         if(!cell.hasClass('available')){ return; }
         cell.parent().first().removeClass('info-cell-highlight');
-        var daterows = cell.parents('table').find('.date-row');
+        var daterows = table.find('.date-row');
         daterows.eq(0).find('td').eq( cell.index() ).removeClass('info-cell-highlight');
         daterows.eq(1).find('td').eq( cell.index() ).removeClass('info-cell-highlight');
-    };
-
-    /**
-     * Called when booking cell down to start interval selection process
-     * @param  {Event}
-     * @return {void}
-     */
-    $scope.celldown = function( event ) {
-
-        if( angular.isDefined($scope.allowInterval) && $scope.allowInterval === false ) {
-            $log.debug('Interval selection is disabled');
-            return;
-        }
-
-        $scope.startCell = angular.element(event.currentTarget);
-
-        if(!$scope.startCell.hasClass('available')) {
-            return;
-        }
-
-        $document.bind( 'mousemove', onBookMove );
-        $document.bind( 'mouseup', onCellUp );
     };
 
     /**
@@ -510,7 +609,7 @@ angular.module('ca.schedule',['ca.schedule.templates'])
 
         var cell = angular.element(event.originalEvent.target);
 
-        if(!cell.hasClass('available')) {
+        if(isBooked(cell) || !isAvailable(cell)) {
             return;
         }
 
@@ -519,12 +618,9 @@ angular.module('ca.schedule',['ca.schedule.templates'])
             cell.data('tipScope').$broadcast('$locationChangeSuccess');
         }
 
-
-        clearSelection();
-
         cell.addClass('schedule-cell-selected');
 
-        $document.unbind( 'mousemove', onBookMove );
+        $document.unbind( 'mousemove', onCellMove );
         $document.unbind( 'mouseup', onCellUp );
 
         trigger(date, time, getCellEndTime(cell));
@@ -540,6 +636,7 @@ angular.module('ca.schedule',['ca.schedule.templates'])
 
         $scope.$watch('availability', onAvailabilityChange);
 
+        $scope.$watch('ngModel', onNgModelController);
 
         if($scope.allowScrolling) {
             enableMouseScrolling();
@@ -574,7 +671,7 @@ angular.module('ca.schedule')
             userStep: '@step',
             userDate:'=date',
             availability:'=',
-            callback:'&onBook',
+            callback:'&onCreateSlot',
             allowInterval:'=interval',
             allowScrolling:'=scrolling',
             bookingReady:'&ready'

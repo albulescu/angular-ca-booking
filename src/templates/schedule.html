@@ -10,7 +10,16 @@
         </tr>
         <tr ng-repeat="time in hours track by time.minutes" ng-class="{'not-sharp':!time.sharp}">
             <td class="info-cell time-cell">{{time.nice}}</td>
-            <td schedule-slot="[date, time]" data-time="{{time}}" ng-repeat="date in dates" ng-click="clearSelection(); book( $event, date, time )" hover-class="schedule-cell-hover" class="schedule-cell" ng-mouseover="cellover($event)" ng-mouseout="cellout($event)" ng-mousedown="celldown($event)"></td>
+            <td schedule-slot="[date, time]"
+                data-time="{{time}}"
+                ng-repeat="date in dates"
+                ng-click="book($event,date,time)"
+                hover-class="schedule-cell-hover"
+                class="schedule-cell" 
+                ng-mouseover="cellover($event)"
+                ng-mouseout="cellout($event)"
+                ng-mousedown="onCellDown($event)">
+            </td>
         </tr>
     </table>
 </div>

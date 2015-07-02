@@ -14,7 +14,7 @@ angular.module('ca.schedule')
             userStep: '@step',
             userDate:'=date',
             availability:'=',
-            callback:'&onBook',
+            callback:'&onCreateSlot',
             allowInterval:'=interval',
             allowScrolling:'=scrolling',
             bookingReady:'&ready'

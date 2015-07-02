@@ -63,6 +63,9 @@
 .ca-schedule .has-availability .available.schedule-cell-hover {
   background: #b0dfba;
 }
+.ca-schedule .available.schedule-cell-selecting {
+  background: #dadada;
+}
 .ca-schedule .available.schedule-cell-selected {
   background: #c4c4c4;
 }
