@@ -721,16 +721,24 @@ angular.module('ca.schedule',['ca.schedule.templates'])
             $element.html('').append(matrix.table);
         });
 
+        matrix.scale = 60;
+
         var date = new Date();
         date.setDate(date.getDate()+1);
 
-        matrix.availability = [{
-            date:new Date(),
-            slots:[[0,1380]]
-        },{
-            date:date,
-            slots:[[0,1380]]
-        },];
+        if(0){
+            matrix.availability = [{
+                date:new Date(),
+                slots:[[0,1380]]
+            },{
+                date:date,
+                slots:[[0,1380]]
+            },];
+        }
+
+        matrix.on('book', function(book){
+            console.log(book);
+        });
 
         updateWeek();
 

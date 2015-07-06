@@ -1,23 +1,10 @@
-angular.module('demo', ['ca.schedule','ca.console'])
+angular.module('demo', ['ca.schedule'])
 
-.config(function($consoleProvider) {
-    //$consoleProvider.overrideBrowserConsole();
-})
-
-.controller('DemoScheduleController', function($scope, $console){
+.controller('DemoScheduleController', function($scope){
 
     $scope.userStep = 60;
     
     $scope.slots = null;
-
-    $scope.init = function() {
-        $console.show();
-
-        $scope.$watch('slots',function(s){
-            $console.log(s);
-        });
-    };
-
     $scope.ready = function() {
         console.log('Booking read');
     };

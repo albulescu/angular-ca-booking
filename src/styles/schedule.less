@@ -1,8 +1,17 @@
-@schedule-background:#F5F5F5;
-@schedule-available-background:#8BD19B;
 @schedule-highlight:#DDD;
-@schedule-dissalowed:red;
+
 @schedule-head-background:#DDD;
+@schedule-head-today-background:darken(#DDD,10%);
+
+@slot-background:#F5F5F5;
+@slot-available-background:green;
+
+@slot-selecting-background:blue;
+@slot-selected-background:yellow;
+
+.over(@c){
+    background:darken(@c, 5%);
+}
 
 .ca-schedule {
     
@@ -13,8 +22,6 @@
     /* No support for these yet, use at own risk */
     -o-user-select: none;
     user-select: none;
-
-    background:@schedule-background;
 
     min-height: 250px;
 
@@ -40,7 +47,14 @@
                 }
 
                 &.today{
-                    background:#CACACA;
+                    background:@schedule-head-today-background;
+                    &.over{
+                        .over(@schedule-head-today-background);
+                    }
+                }
+
+                &.over {
+                    .over(@schedule-head-background);
                 }
             }
         }
@@ -48,6 +62,9 @@
         .time {
             background:@schedule-head-background;
             padding:0px 5px;
+            &.over {
+                .over(@schedule-head-background);
+            }
         }
 
         tr.nsharp td {
@@ -59,14 +76,28 @@
         }
 
         .slot {
+            background:@slot-background;
             height:30px;
             border-bottom:1px solid @schedule-highlight;
             border-right:1px solid @schedule-highlight;
             &:last-child{
                 border-right:0;
             }
+            &.over {
+                .over(@slot-background);
+            }
             &.available{
-                background:green;
+                background:@slot-available-background;
+                &.over {
+                    .over(@slot-available-background);
+                }
+            }
+            &.selecting {
+                background:@slot-selecting-background;
+            }
+
+            &.selected{
+                background:@slot-selected-background;
             }
         }
     }

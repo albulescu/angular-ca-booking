@@ -759,16 +759,24 @@ angular.module('ca.schedule',['ca.schedule.templates'])
             $element.html('').append(matrix.table);
         });
 
+        matrix.scale = 60;
+
         var date = new Date();
         date.setDate(date.getDate()+1);
 
-        matrix.availability = [{
-            date:new Date(),
-            slots:[[0,1380]]
-        },{
-            date:date,
-            slots:[[0,1380]]
-        },];
+        if(0){
+            matrix.availability = [{
+                date:new Date(),
+                slots:[[0,1380]]
+            },{
+                date:date,
+                slots:[[0,1380]]
+            },];
+        }
+
+        matrix.on('book', function(book){
+            console.log(book);
+        });
 
         updateWeek();
 
@@ -886,11 +894,15 @@ angular.module('ca.schedule')
         var dateFormat  = "dddd<br/>dd-m-yy";
 
         var availability=null;
+        var slots=[];
 
         var scrollable=true;
         var scrolling=false;
         var scrollingInterval=null;
         var weekScroll=false;
+
+        var selecting=false;
+        var selectingFirstSlot;
 
         Object.defineProperty(this, 'table', {
             get:function(){ return table; }
@@ -904,7 +916,7 @@ angular.module('ca.schedule')
                     throw new Error('Ivalid time scale');
                 }
 
-                scale=value;
+                scale=parseInt(value,10);
 
                 self.invalidateMatrix();
             }
@@ -918,6 +930,11 @@ angular.module('ca.schedule')
         Object.defineProperty(this, 'availability', {
             get:function(){ return availability; },
             set:function(value){ availability=value; self.invalidateAvailability();}
+        });
+
+        Object.defineProperty(this, 'slots', {
+            get:function(){ return slots; },
+            set:function(value){ slots=value; self.invalidateSlots();}
         });
 
         var forwardSlotEvent = function(name){
@@ -944,6 +961,7 @@ angular.module('ca.schedule')
 
             self.invalidateDates();
             self.invalidateAvailability();
+            self.invalidateSlots();
 
 
             clearTimeout(scrollingInterval);
@@ -1014,9 +1032,13 @@ angular.module('ca.schedule')
                     }
                     
                     td.className = 'slot';
+                    td.dataset.x=i;
+                    td.dataset.y=j;
 
                     td.addEventListener('mouseover', forwardSlotEvent('mouseover'));
                     td.addEventListener('mouseout',  forwardSlotEvent('mouseout'));
+                    td.addEventListener('mousedown',  forwardSlotEvent('mousedown'));
+                    td.addEventListener('click',  forwardSlotEvent('click'));
                 }
 
                 tbl.appendChild(tr);
@@ -1065,7 +1087,7 @@ angular.module('ca.schedule')
             
             angular.element(table).find('.available').removeClass('available');
 
-            if(!matrix.length){
+            if(!matrix.length || !availability){
                 return;
             }
 
@@ -1093,6 +1115,220 @@ angular.module('ca.schedule')
 
         var validateSlots = function(){
 
+            angular.element(table).find('.selected').removeClass('selected');
+
+            for (var i = 0; i < slots.length; i++) {
+                for (var j = 1; j < 8; j++) {
+                    var cdate = new Date(matrix[0][j].dataset.date);
+                    var sdate = slots[i].date;
+                    if( DateUtils.equals(cdate, sdate)){
+                        for (var k = 0; k < slots[i].slots.length; k++) {
+                            var row = slots[i].slots[k][0] / 60 + 1;
+                            angular.element(matrix[row][j]).addClass('selected');
+                        };
+                        break;
+                    }
+                }
+            }
+            
+
+        };
+
+        var onSlotOver = function(event){
+
+
+            var cell = angular.element(event.currentTarget);
+
+            if( canSelect(event) ){
+                cell.addClass('over');
+            }
+
+            angular.element(matrix[0][cell.data('y')]).addClass('over');
+            angular.element(matrix[cell.data('x')][0]).addClass('over');
+
+            updateCursor(event);
+        };
+        
+        var onSlotOut = function(event){
+
+            var cell = angular.element(event.currentTarget);
+
+            cell.removeClass('over');
+
+            angular.element(matrix[0][cell.data('y')]).removeClass('over');
+            angular.element(matrix[cell.data('x')][0]).removeClass('over');
+
+            updateCursor();
+        };
+
+        var onSlotMouseDown = function(event){
+            
+            if(!canSelect(event)){
+                return;
+            }
+
+            selectingFirstSlot=event.currentTarget;
+            document.addEventListener('mousemove', onSelectingMouseMove);
+            document.addEventListener('mouseup', onSelectingMouseUp);
+        };
+
+        var onSelectingMouseUp = function(event){
+
+            updateCursor();
+
+            document.removeEventListener('mousemove', onSelectingMouseMove);
+            document.removeEventListener('mouseup', onSelectingMouseUp);
+            
+            var column = parseInt(selectingFirstSlot.dataset.y);
+            
+            for (var i = parseInt(selectingFirstSlot.dataset.x); i < matrix.length; i++) {
+                angular.element(matrix[i][column]).removeClass('selecting');
+            }
+
+            if(!canSelect(event) || selectingFirstSlot === event.target){
+                return;
+            }
+
+            emit('book', createBooking(selectingFirstSlot, event.target));
+
+            selectingFirstSlot=null;
+            selecting=false;
+
+        };
+
+        var onSelectingMouseMove = function(event){
+
+            var slot = angular.element(event.target);
+
+            if( event.target === selectingFirstSlot ){
+                return;
+            }
+
+            if(!isSlot(event)){
+                return;
+            }
+
+            selecting = true;
+
+            var column  = parseInt(selectingFirstSlot.dataset.y);
+            var from    = parseInt(selectingFirstSlot.dataset.x);
+            var to      = parseInt(slot.data('x'));
+            var i;
+
+            if( from > to ) {
+                var tmp = to;
+                to = from;
+                from = tmp;
+            }
+
+            for (i = 1; i < matrix.length; i++) {
+                if( i >= from && i <= to ){
+                    angular.element(matrix[i][column]).addClass('selecting');
+                }else{
+                    angular.element(matrix[i][column]).removeClass('selecting');
+                }
+            }
+
+            updateCursor(event);
+        };
+
+        var onSlotClick = function(event){
+            
+            if(!canSelect(event)){
+                return;
+            }
+
+            emit('book', createBooking(event.target));
+        };
+
+        var onBook = function(booking){
+            self.addSlots(booking);
+        };
+
+        var createBooking = function(from, to){
+
+            var Book = function(date, slots){
+                this.a = slots;
+                Object.defineProperty(this, 'date', {get:function(){
+                    return date;
+                }});
+                Object.defineProperty(this, 'slots', {get:function(){
+                    return slots;
+                }});
+            };
+
+            var column  = parseInt(from.dataset.y);
+
+            var date = new Date(matrix[0][column].dataset.date);
+            var slots=[];
+
+            var x = parseInt(from.dataset.x)-1;
+            var y = typeof(to)!='undefined' ? parseInt(to.dataset.x) : parseInt(from.dataset.x);
+
+            for (var i = x; i < y; i++) {
+                slots.push([i*scale,i*scale+scale]);
+            }
+
+            return new Book(date, slots);
+
+        };
+
+        var isSlot = function( event ){
+
+            var cell = event.target;
+            var celle = angular.element(cell);
+
+            if( cell.nodeName != 'TD' ||
+                !celle.hasClass('slot')){
+                return false;
+            }
+
+            var parents = celle.parents();
+
+            if(parents.index(table) == -1){
+                return false;
+            }
+
+            return true;
+        };
+
+        var canSelect = function(event){
+            
+            if(!isSlot(event)){
+                return false;
+            }
+
+            var e = angular.element(event.target);
+
+            if( availability && e.hasClass('available') ){
+                return true;
+            }
+
+            if(!availability && !e.hasClass('selected')){
+                return true;
+            }
+
+            return false;
+        };
+
+        /**
+         * Update table cursor based on current slot state
+         * @param  {NodeElement} slot Slot
+         */
+        var updateCursor = function(event){
+            
+            if( selecting ){
+                table.style.cursor='row-resize';
+            }
+            else if(!event || !isSlot(event)){
+                table.style.cursor='default';
+            }
+            else if(!canSelect(event)){
+                table.style.cursor='not-allowed';
+            }
+            else {
+                table.style.cursor='pointer';
+            }
         };
 
         this.validate = function(){
@@ -1107,23 +1343,28 @@ angular.module('ca.schedule')
             });
         };
 
+        this.addSlots = function(booking){
+            slots.push(booking);
+            this.invalidateSlots();
+        };
+
         /**
          * Bind a function to an event
          * @param  {string} event Event name
          * @param  {Function} fct   Callback
          * @return {Void}
          */
-        this.on = function(event, fct){
+        var on = this.on = function(event, fct){
             events[event] = events[event]||[];
             events[event].push(fct);
         };
 
-        this.off = function(event, fct){
+        var off = this.off = function(event, fct){
             if( event in events === false  )  return;
             events[event].splice(events[event].indexOf(fct), 1);
         };
 
-        this.emit = function(event /* , args... */){
+        var emit = this.emit = function(event /* , args... */){
             if( event in events === false  )  return;
             for(var i = 0; i < events[event].length; i++){
                 events[event][i].apply(this, Array.prototype.slice.call(arguments, 1));
@@ -1134,6 +1375,12 @@ angular.module('ca.schedule')
         validators.push( new ValidationDecorator(this, 'dates', validateDates) );
         validators.push( new ValidationDecorator(this, 'availability', validateAvailability) );
         validators.push( new ValidationDecorator(this, 'slots', validateSlots   ) );
+
+        on('slot.mouseover', onSlotOver);
+        on('slot.mouseout',  onSlotOut);
+        on('slot.mousedown', onSlotMouseDown);
+        on('slot.click',     onSlotClick);
+        on('book',           onBook);
     }
 
     return function(){
