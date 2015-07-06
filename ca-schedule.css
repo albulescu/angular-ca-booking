@@ -19,56 +19,36 @@
 }
 .ca-schedule table {
   border-collapse: collapse;
+  border: 1px solid #dddddd;
 }
-.ca-schedule table tr td {
-  padding: 3px;
-  border-bottom: 1px solid #dddddd;
+.ca-schedule table thead th {
+  background: #dddddd;
+  width: 100px;
 }
-.ca-schedule table tr.not-sharp td {
+.ca-schedule table thead th:first-child {
+  width: auto;
+}
+.ca-schedule table thead th.today {
+  background: #CACACA;
+}
+.ca-schedule table .time {
+  background: #dddddd;
+  padding: 0px 5px;
+}
+.ca-schedule table tr.nsharp td {
   border-bottom: 1px dashed #dddddd;
 }
 .ca-schedule table tr:last-child td {
   border-bottom: 1px solid #dddddd;
 }
-.ca-schedule table .date-cell:last-child {
-  border-right: 3px solid #84589B;
+.ca-schedule table .slot {
+  height: 30px;
+  border-bottom: 1px solid #dddddd;
+  border-right: 1px solid #dddddd;
 }
-.ca-schedule table .time-cell {
-  border-left: 1px solid #84589B;
+.ca-schedule table .slot:last-child {
+  border-right: 0;
 }
-.ca-schedule table .empty-cell {
-  border-bottom: 1px solid transparent;
-}
-.ca-schedule table .info-cell-highlight td:first-child,
-.ca-schedule table .date-row .info-cell-highlight {
-  background: #9c75b1;
-}
-.ca-schedule .info-cell {
-  background: #84589B;
-  color: #FFF;
-  text-align: center;
-  border-right: 3px solid #dcdcdc;
-}
-.ca-schedule .schedule-cell {
-  border-right: 3px solid #dddddd;
-}
-.ca-schedule .available.schedule-cell-hover {
-  background: #dddddd;
-  color: #FFF;
-  cursor: pointer;
-}
-.ca-schedule .has-availability .available {
-  background: #8bd19b;
-}
-.ca-schedule .has-availability .available.schedule-cell-hover {
-  background: #b0dfba;
-}
-.ca-schedule .available.schedule-cell-selecting {
-  background: #dadada;
-}
-.ca-schedule .available.schedule-cell-selected {
-  background: #c4c4c4;
-}
-.ca-schedule .has-availability .available.schedule-cell-selected {
-  background: #66c37c;
+.ca-schedule table .slot.available {
+  background: green;
 }

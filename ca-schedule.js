@@ -10,7 +10,29 @@
 
 angular.module('ca.schedule.templates', []).run(['$templateCache', function($templateCache) {
 $templateCache.put('ca-schedule/directive/schedule.html',
-    "<div class=ca-schedule ng-init=init()><table cellspacing=0 cellpading=0><tr class=date-row><td class=\"info-cell empty-cell\"></td><td class=\"info-cell date-cell\" ng-repeat=\"day in days\">{{day}}</td></tr><tr class=date-row><td class=\"info-cell empty-cell\"></td><td class=\"info-cell date-cell\" ng-repeat=\"date in dates\">{{date|date}}</td></tr><tr ng-repeat=\"time in hours track by time.minutes\" ng-class=\"{'not-sharp':!time.sharp}\"><td class=\"info-cell time-cell\">{{time.nice}}</td><td schedule-slot=\"[date, time]\" data-time={{time}} ng-repeat=\"date in dates\" ng-click=book($event,date,time) hover-class=schedule-cell-hover class=schedule-cell ng-mouseover=cellover($event) ng-mouseout=cellout($event) ng-mousedown=onCellDown($event)></td></tr></table></div>"
+    "<div class=ca-schedule ng-init=init()><div class=slots><div ng-repeat=\"slot in slots\" class=slot>dsfsdf {{slot.date}}</div></div><!-- <table cellspacing=\"0\" cellpading=\"0\" ng-style=\"style\">\n" +
+    "        <tr class=\"date-row\">\n" +
+    "            <td class=\"info-cell empty-cell\"></td>\n" +
+    "            <td class=\"info-cell date-cell\" ng-repeat=\"day in days\">{{day}}</td>\n" +
+    "        </tr>\n" +
+    "        <tr class=\"date-row\">\n" +
+    "            <td class=\"info-cell empty-cell\"></td>\n" +
+    "            <td class=\"info-cell date-cell\" ng-repeat=\"date in dates\">{{date|date}}</td>\n" +
+    "        </tr>\n" +
+    "        <tr ng-repeat=\"time in hours track by time.minutes\" ng-class=\"{'not-sharp':!time.sharp}\">\n" +
+    "            <td class=\"info-cell time-cell\">{{time.nice}}</td>\n" +
+    "            <td schedule-slot=\"[date, time]\"\n" +
+    "                data-time=\"{{time}}\"\n" +
+    "                ng-repeat=\"date in dates\"\n" +
+    "                ng-click=\"book($event,date,time)\"\n" +
+    "                hover-class=\"schedule-cell-hover\"\n" +
+    "                class=\"schedule-cell\" \n" +
+    "                ng-mouseover=\"cellover($event)\"\n" +
+    "                ng-mouseout=\"cellout($event)\"\n" +
+    "                ng-mousedown=\"onCellDown($event)\">\n" +
+    "            </td>\n" +
+    "        </tr>\n" +
+    "    </table> --></div>"
   );
 
 }]);
@@ -18,7 +40,7 @@ $templateCache.put('ca-schedule/directive/schedule.html',
 
 angular.module('ca.schedule',['ca.schedule.templates'])
 
-.controller('BookingController', ["$scope", "$injector", "$filter", "$compile", "$document", "$timeout", "$element", "$log", "ScheduleTime", "TimeUtils", function( $scope, $injector, $filter, $compile, $document, $timeout, $element, $log, ScheduleTime, TimeUtils ){
+.controller('BookingController', ["$scope", "$injector", "$filter", "$compile", "$document", "$timeout", "$element", "$log", "ScheduleTime", "MatrixTableFactory", "TimeUtils", function( $scope, $injector, $filter, $compile, $document, $timeout, $element, $log, ScheduleTime, MatrixTableFactory, TimeUtils ){
 
     var self = this;
 
@@ -86,9 +108,15 @@ angular.module('ca.schedule',['ca.schedule.templates'])
 
     $scope.slots = [];
 
+    $scope.style = {};
+
     var table = $element.find('table:eq(0)');
 
     var tds=[];
+
+    var selecting = false;
+
+    var matrix = window.m = MatrixTableFactory();
 
     var Slot = function(date,from,to) {
         Object.defineProperty(this,"from",{"get":function(){
@@ -264,6 +292,30 @@ angular.module('ca.schedule',['ca.schedule.templates'])
         $element.find('table').addClass('has-availability');
     };
 
+    var renderSlots = function(){
+        
+        if(!angular.isArray($scope.slots) || !$scope.slots.length){
+            return;
+        }
+        var tableRect = $element[0].getBoundingClientRect();
+        var slots = $element.find('.slots .slot');
+
+        for (var i = 0; i < $scope.slots.length; i++) {
+            
+            var tds = $scope.slots[i].tds;
+            
+            var topRect=tds[0][0].getBoundingClientRect();
+            var bottomRect=tds[tds.length-1][0].getBoundingClientRect();
+
+            slots.eq(i).css({
+                'left' : topRect.left-tableRect.left,
+                'top' : topRect.top-tableRect.top,
+                'width' : bottomRect.width,
+                'height' : bottomRect.top - topRect.top + bottomRect.height,
+            });
+        }
+    }
+
     /**
      * Setup apparence of available slot
      * @param  {DOMNode} td element
@@ -351,6 +403,10 @@ angular.module('ca.schedule',['ca.schedule.templates'])
             return;
         }
 
+        selecting = true;
+
+        $scope.style.pointer = 'row-resize';
+
         $document.bind( 'mousemove', onCellMove );
         $document.bind( 'mouseup', onCellUp );
     };
@@ -378,6 +434,10 @@ angular.module('ca.schedule',['ca.schedule.templates'])
 
         var startIndex = $scope.startCell.parent().index();
         var endIndex = cell.parent().index();
+
+        if(startIndex === endIndex){
+            return;
+        }
 
         console.log(startIndex+'-'+endIndex);
 
@@ -431,6 +491,8 @@ angular.module('ca.schedule',['ca.schedule.templates'])
      */
     var onCellUp = function(event) {
         
+        selecting=false;
+        
         if(!$scope.interval) {
             return;
         }
@@ -460,9 +522,28 @@ angular.module('ca.schedule',['ca.schedule.templates'])
         $scope.startCell = null;
 
         $scope.interval = false;
+    };
 
-        setPendingSlotDone();
+    var onSlotHover = function(index){
 
+        if( selecting ){
+            return;
+        }
+
+        for (var i = 0; i < $scope.slots[index]['tds'].length; i++) {
+            $scope.slots[index]['tds'][i].addClass('slot-hover');
+        }
+    };
+
+    var onSlotOut = function(index){
+
+        if( selecting ){
+            return;
+        }
+
+        for (var i = 0; i < $scope.slots[index]['tds'].length; i++) {
+            $scope.slots[index]['tds'][i].removeClass('slot-hover');
+        }
     };
 
     /**
@@ -490,7 +571,13 @@ angular.module('ca.schedule',['ca.schedule.templates'])
             $scope.ngModel.$setViewValue($data.slots);
         }
 
+        setPendingSlotDone(slot, $scope.slots.length);
+
         $scope.slots.push(slot);
+
+        $scope.$digest();
+
+        return $scope.slots.length - 1;
     };
 
     var isBooked = function(cell){
@@ -538,11 +625,13 @@ angular.module('ca.schedule',['ca.schedule.templates'])
         tds=[];
     };
 
-    var setPendingSlotDone = function(){
+    var setPendingSlotDone = function( slot, index ){
         for (var i = 0; i < tds.length; i++) {
             tds[i].removeClass('schedule-cell-selecting')
-                  .addClass('schedule-cell-selected');
+                  .addClass('schedule-cell-selected')
+                  .data('slot-index', index);
         }
+        slot.tds=tds;
         tds=[];
     };
 
@@ -577,7 +666,15 @@ angular.module('ca.schedule',['ca.schedule.templates'])
      */
     $scope.cellover = function( event ) {
         var cell = angular.element(event.currentTarget);
+
+        if( typeof(cell.data('slot-index')) != 'undefined' ){
+            onSlotHover(cell.data('slot-index'));
+        }
+
         if(!cell.hasClass('available')){ return; }
+
+        cell.addClass('cell-hover');
+
         cell.parent().first().addClass('info-cell-highlight');
         var daterows = table.find('.date-row');
         daterows.eq(0).find('td').eq( cell.index() ).addClass('info-cell-highlight');
@@ -591,6 +688,13 @@ angular.module('ca.schedule',['ca.schedule.templates'])
      */
     $scope.cellout = function( event ) {
         var cell = angular.element(event.currentTarget);
+
+        if( typeof(cell.data('slot-index')) != 'undefined' ){
+            onSlotOut(cell.data('slot-index'));
+        }
+
+        cell.removeClass('cell-hover');
+
         if(!cell.hasClass('available')){ return; }
         cell.parent().first().removeClass('info-cell-highlight');
         var daterows = table.find('.date-row');
@@ -623,6 +727,8 @@ angular.module('ca.schedule',['ca.schedule.templates'])
         $document.unbind( 'mousemove', onCellMove );
         $document.unbind( 'mouseup', onCellUp );
 
+        tds.push(cell);
+
         trigger(date, time, getCellEndTime(cell));
     };
 
@@ -631,9 +737,16 @@ angular.module('ca.schedule',['ca.schedule.templates'])
         $log.debug('Init booking widget');
 
         $scope.$watch('step', updateHours);
-        $scope.$watch('userStep', onUserStepChanged);
+        $scope.$watch('userStep', function(scale){
+            if(!scale){
+                return;
+            }
+            matrix.scale = scale;
+        });
         $scope.$watch('userDate', onUserDateChanged);
-
+        $scope.$watchCollection('slots', function(){
+            $timeout(renderSlots)
+        });
         $scope.$watch('availability', onAvailabilityChange);
 
         $scope.$watch('ngModel', onNgModelController);
@@ -641,6 +754,21 @@ angular.module('ca.schedule',['ca.schedule.templates'])
         if($scope.allowScrolling) {
             enableMouseScrolling();
         }
+
+        matrix.on('matrixValidated', function(){
+            $element.html('').append(matrix.table);
+        });
+
+        var date = new Date();
+        date.setDate(date.getDate()+1);
+
+        matrix.availability = [{
+            date:new Date(),
+            slots:[[0,1380]]
+        },{
+            date:date,
+            slots:[[0,1380]]
+        },];
 
         updateWeek();
 
@@ -662,6 +790,7 @@ angular.module('ca.schedule')
 .directive('schedule', function(){
     return {
         restrict : 'E',
+        replace:true,
         templateUrl: 'ca-schedule/directive/schedule.html',
         controller: 'BookingController',
         require: ['?^ngModel'],
@@ -719,6 +848,437 @@ angular.module('ca.schedule')
 
 angular.module('ca.schedule')
 
+.factory('MatrixTableFactory', ["DateUtils", "TimeUtils", function(DateUtils, TimeUtils){
+
+    var ValidationDecorator = function( instance, name, validate ){
+        
+        name = name.charAt(0).toUpperCase() + name.substr(1);
+
+        var validated=false;
+        var interval=null;
+
+        this.validate = instance['validate'+name] = function(){
+            if( validated ){
+                return;
+            }
+            validate();
+            validated=true;
+            instance.emit(name.toLowerCase()+'Validated');
+        };
+
+        this.invalidate = instance['invalidate'+name] = function(){
+            validated=false;
+            clearTimeout(interval);
+            interval=setTimeout(instance['validate'+name].bind(instance));
+        };
+    };
+
+    var MatrixTable = function(){
+
+        var self        = this;
+        var date        = new Date();
+        var today       = new Date();
+        var matrix      = [];
+        var scale       = 60;
+        var table       = null;
+        var events      = {};
+        var validators  = [];
+        var dateFormat  = "dddd<br/>dd-m-yy";
+
+        var availability=null;
+
+        var scrollable=true;
+        var scrolling=false;
+        var scrollingInterval=null;
+        var weekScroll=false;
+
+        Object.defineProperty(this, 'table', {
+            get:function(){ return table; }
+        });
+
+        Object.defineProperty(this, 'scale', {
+            get:function(){ return scale; },
+            set:function(value){
+                
+                if(value%10!==0){
+                    throw new Error('Ivalid time scale');
+                }
+
+                scale=value;
+
+                self.invalidateMatrix();
+            }
+        });
+
+        Object.defineProperty(this, 'weekScroll', {
+            get:function(){ return weekScroll; },
+            set:function(value){ weekScroll=value; }
+        });
+
+        Object.defineProperty(this, 'availability', {
+            get:function(){ return availability; },
+            set:function(value){ availability=value; self.invalidateAvailability();}
+        });
+
+        var forwardSlotEvent = function(name){
+            return function(event){
+                self.emit('slot.'+name, event);
+            };
+        };
+
+        var onTableScroll = function(event){
+            
+            if(!scrollable){
+                return;
+            }
+
+            scrolling=true;
+
+            event.preventDefault();
+            
+            if( event.wheelDelta > 9) {
+                date.setDate(date.getDate() + (weekScroll?7:1));
+            }else{
+                date.setDate(date.getDate() - (weekScroll?7:1));
+            }
+
+            self.invalidateDates();
+            self.invalidateAvailability();
+
+
+            clearTimeout(scrollingInterval);
+            scrollingInterval = setTimeout(function(){
+                scrolling=false;
+            },1000);
+        };
+
+        var validateMatrix = function(){
+
+            if( table && table.dataset.scale && 
+                table.dataset.scale === scale ){
+                return;
+            }
+
+            var m=[];
+            var tbl = document.createElement('table');
+
+            tbl.dataset.scale = scale;
+
+            for (var i = 0; i < (60/scale*24)+1; i++)
+            {
+                var tr = document.createElement('tr');
+                var j,td;
+
+                m[i]=[];
+
+                if( i === 0 )
+                {
+
+                    var head = document.createElement('thead');
+                    var headRow = document.createElement('tr');
+
+                    m[i].push(head);
+                    
+                    for (j = 0; j < 8; j++) {
+                        td = document.createElement('th');
+                        m[i][j]=td;
+                        headRow.appendChild(td);
+                    }
+
+                    head.appendChild(headRow);
+                    tbl.appendChild(head);
+
+                    continue;
+                }
+
+                for (j = 0; j < 8; j++) {
+
+                    td = document.createElement('td');
+                    m[i][j] = td;
+                    tr.appendChild(td);
+
+                    if( j===0 ){
+
+                        td.className='time';
+                        var summinutes = (i-1)*scale;
+                        var hours =  TimeUtils.zeroFill(Math.floor(summinutes / 60));
+                        var minutes = TimeUtils.zeroFill(summinutes % 60);
+
+                        if( minutes == "00" && scale < 60) {
+                            tr.className='nsharp';
+                        }
+
+                        m[i][0].innerHTML=hours+':'+minutes;
+
+                        continue;
+                    }
+                    
+                    td.className = 'slot';
+
+                    td.addEventListener('mouseover', forwardSlotEvent('mouseover'));
+                    td.addEventListener('mouseout',  forwardSlotEvent('mouseout'));
+                }
+
+                tbl.appendChild(tr);
+            }
+
+            matrix=m;
+            table=tbl;
+
+            table.addEventListener('mousewheel', onTableScroll);
+
+            self.invalidateDates();
+            self.invalidateAvailability();
+
+            console.log('Matrix validated');
+        };
+        
+        var validateDates=function(){
+
+            var i,j;
+
+            angular.element(table).find('.today').removeClass('today');
+
+            //setup header
+            var day = date.getDay() === 0 ? 6 : (date.getDay() - 1);
+            
+            if(!scrolling){
+                date.setDate( date.getDate() - day );
+            }
+
+            for (i = 0; i < 7; i++) {
+                var loop = new Date( date.getTime() );
+                loop.setDate( date.getDate() + i );
+                matrix[0][i+1].innerHTML=DateUtils.format(loop, dateFormat);
+                matrix[0][i+1].dataset.date = loop;
+                if( DateUtils.isToday(loop) ){
+                    angular.element(matrix[0][i+1]).addClass('today');
+                }
+            }
+
+            console.log('Dates validated');
+        };
+
+        var validateAvailability = function(){
+
+            var x,y,z,i;
+            
+            angular.element(table).find('.available').removeClass('available');
+
+            if(!matrix.length){
+                return;
+            }
+
+            for (x = 0; x < availability.length; x++) {
+                for (y = 1; y < 8; y++) {
+                    if(DateUtils.equals(new Date(matrix[0][y].dataset.date), availability[x].date)){
+                        var slots = angular.copy(availability[x].slots);
+                        for (z = 1; z < matrix.length; z++) {
+                            for (i = 0; i < slots.length; i++) {
+                                var ctime = (z-1)*scale;
+                                if( ctime >= slots[i][0] && ctime < slots[i][1]){
+                                    angular.element(matrix[z][y]).addClass('available');
+                                    if( ctime>=slots[i][1] ){
+                                        slots.splice(i,1);
+                                    }
+                                }
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+
+        };
+
+        var validateSlots = function(){
+
+        };
+
+        this.validate = function(){
+            validators.forEach(function(validator){
+                validator.validate();
+            });
+        };
+
+        this.invalidate = function() {
+            validators.forEach(function(validator){
+                validator.invalidate();
+            });
+        };
+
+        /**
+         * Bind a function to an event
+         * @param  {string} event Event name
+         * @param  {Function} fct   Callback
+         * @return {Void}
+         */
+        this.on = function(event, fct){
+            events[event] = events[event]||[];
+            events[event].push(fct);
+        };
+
+        this.off = function(event, fct){
+            if( event in events === false  )  return;
+            events[event].splice(events[event].indexOf(fct), 1);
+        };
+
+        this.emit = function(event /* , args... */){
+            if( event in events === false  )  return;
+            for(var i = 0; i < events[event].length; i++){
+                events[event][i].apply(this, Array.prototype.slice.call(arguments, 1));
+            }
+        };
+
+        validators.push( new ValidationDecorator(this, 'matrix', validateMatrix) );
+        validators.push( new ValidationDecorator(this, 'dates', validateDates) );
+        validators.push( new ValidationDecorator(this, 'availability', validateAvailability) );
+        validators.push( new ValidationDecorator(this, 'slots', validateSlots   ) );
+    }
+
+    return function(){
+        return new MatrixTable();
+    };
+}]);
+
+angular.module('ca.schedule')
+
+.factory('DateUtils', function(){
+    /*
+     * Date Format 1.2.3
+     * (c) 2007-2009 Steven Levithan <stevenlevithan.com>
+     * MIT license
+     *
+     * Includes enhancements by Scott Trenda <scott.trenda.net>
+     * and Kris Kowal <cixar.com/~kris.kowal/>
+     *
+     * Accepts a date, a mask, or a date and a mask.
+     * Returns a formatted version of the given date.
+     * The date defaults to the current date/time.
+     * The mask defaults to dateFormat.masks.default.
+     */
+
+    var dateFormat = function () {
+        var token = /d{1,4}|m{1,4}|yy(?:yy)?|([HhMsTt])\1?|[LloSZ]|"[^"]*"|'[^']*'/g,
+            timezone = /\b(?:[PMCEA][SDP]T|(?:Pacific|Mountain|Central|Eastern|Atlantic) (?:Standard|Daylight|Prevailing) Time|(?:GMT|UTC)(?:[-+]\d{4})?)\b/g,
+            timezoneClip = /[^-+\dA-Z]/g,
+            pad = function (val, len) {
+                val = String(val);
+                len = len || 2;
+                while (val.length < len) val = "0" + val;
+                return val;
+            };
+
+        // Regexes and supporting functions are cached through closure
+        return function (date, mask, utc) {
+            var dF = dateFormat;
+
+            // You can't provide utc if you skip other args (use the "UTC:" mask prefix)
+            if (arguments.length == 1 && Object.prototype.toString.call(date) == "[object String]" && !/\d/.test(date)) {
+                mask = date;
+                date = undefined;
+            }
+
+            // Passing date through Date applies Date.parse, if necessary
+            date = date ? new Date(date) : new Date;
+            if (isNaN(date)) throw SyntaxError("invalid date");
+
+            mask = String(dF.masks[mask] || mask || dF.masks["default"]);
+
+            // Allow setting the utc argument via the mask
+            if (mask.slice(0, 4) == "UTC:") {
+                mask = mask.slice(4);
+                utc = true;
+            }
+
+            var _ = utc ? "getUTC" : "get",
+                d = date[_ + "Date"](),
+                D = date[_ + "Day"](),
+                m = date[_ + "Month"](),
+                y = date[_ + "FullYear"](),
+                H = date[_ + "Hours"](),
+                M = date[_ + "Minutes"](),
+                s = date[_ + "Seconds"](),
+                L = date[_ + "Milliseconds"](),
+                o = utc ? 0 : date.getTimezoneOffset(),
+                flags = {
+                    d:    d,
+                    dd:   pad(d),
+                    ddd:  dF.i18n.dayNames[D],
+                    dddd: dF.i18n.dayNames[D + 7],
+                    m:    m + 1,
+                    mm:   pad(m + 1),
+                    mmm:  dF.i18n.monthNames[m],
+                    mmmm: dF.i18n.monthNames[m + 12],
+                    yy:   String(y).slice(2),
+                    yyyy: y,
+                    h:    H % 12 || 12,
+                    hh:   pad(H % 12 || 12),
+                    H:    H,
+                    HH:   pad(H),
+                    M:    M,
+                    MM:   pad(M),
+                    s:    s,
+                    ss:   pad(s),
+                    l:    pad(L, 3),
+                    L:    pad(L > 99 ? Math.round(L / 10) : L),
+                    t:    H < 12 ? "a"  : "p",
+                    tt:   H < 12 ? "am" : "pm",
+                    T:    H < 12 ? "A"  : "P",
+                    TT:   H < 12 ? "AM" : "PM",
+                    Z:    utc ? "UTC" : (String(date).match(timezone) || [""]).pop().replace(timezoneClip, ""),
+                    o:    (o > 0 ? "-" : "+") + pad(Math.floor(Math.abs(o) / 60) * 100 + Math.abs(o) % 60, 4),
+                    S:    ["th", "st", "nd", "rd"][d % 10 > 3 ? 0 : (d % 100 - d % 10 != 10) * d % 10]
+                };
+
+            return mask.replace(token, function ($0) {
+                return $0 in flags ? flags[$0] : $0.slice(1, $0.length - 1);
+            });
+        };
+    }();
+
+    // Some common format strings
+    dateFormat.masks = {
+        "default":      "ddd mmm dd yyyy HH:MM:ss",
+        shortDate:      "m/d/yy",
+        mediumDate:     "mmm d, yyyy",
+        longDate:       "mmmm d, yyyy",
+        fullDate:       "dddd, mmmm d, yyyy",
+        shortTime:      "h:MM TT",
+        mediumTime:     "h:MM:ss TT",
+        longTime:       "h:MM:ss TT Z",
+        isoDate:        "yyyy-mm-dd",
+        isoTime:        "HH:MM:ss",
+        isoDateTime:    "yyyy-mm-dd'T'HH:MM:ss",
+        isoUtcDateTime: "UTC:yyyy-mm-dd'T'HH:MM:ss'Z'"
+    };
+
+    // Internationalization strings
+    dateFormat.i18n = {
+        dayNames: [
+            "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat",
+            "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"
+        ],
+        monthNames: [
+            "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+            "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"
+        ]
+    };
+
+    return {
+        format: function(date, format, utc){
+            return dateFormat(date, format, utc)
+        },
+        isToday: function(date){
+            return this.equals(date, new Date());
+        },
+        equals:function(a, b){
+            return a.getDate() === b.getDate() && 
+                   a.getMonth() === b.getMonth() &&
+                   a.getYear() === b.getYear();
+        }
+    };
+})
 .factory('TimeUtils', function(){
     return {
         zeroFill: function(n) {
@@ -753,13 +1313,19 @@ angular.module('ca.schedule')
         step = step || 60;
         var minutes = mins;
         var self    = this;
-
+        var cache = {};
         var zeroFill = function(n) {
             return (n < 10) ? ('0'+n) : n;
         };
 
         this.format = function( format ) {
             
+            var key = format;
+
+            if( cache[key] ){
+                return cache[key];
+            }
+
             /**
              * h = 0-12
              * H = 0-24
@@ -778,6 +1344,8 @@ angular.module('ca.schedule')
             format = format.replace('M', zeroFill(m));
             format = format.replace('p', hours >= 12 ? 'pm' : 'am');
             format = format.replace('P', hours >= 12 ? 'PM' : 'AM');
+
+            cache[key]=format;
 
             return format;
         };

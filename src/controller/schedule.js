@@ -2,7 +2,7 @@
 
 angular.module('ca.schedule',['ca.schedule.templates'])
 
-.controller('BookingController', function( $scope, $injector, $filter, $compile, $document, $timeout, $element, $log, ScheduleTime, TimeUtils ){
+.controller('BookingController', function( $scope, $injector, $filter, $compile, $document, $timeout, $element, $log, ScheduleTime, MatrixTableFactory, TimeUtils ){
 
     var self = this;
 
@@ -70,9 +70,15 @@ angular.module('ca.schedule',['ca.schedule.templates'])
 
     $scope.slots = [];
 
+    $scope.style = {};
+
     var table = $element.find('table:eq(0)');
 
     var tds=[];
+
+    var selecting = false;
+
+    var matrix = window.m = MatrixTableFactory();
 
     var Slot = function(date,from,to) {
         Object.defineProperty(this,"from",{"get":function(){
@@ -248,6 +254,30 @@ angular.module('ca.schedule',['ca.schedule.templates'])
         $element.find('table').addClass('has-availability');
     };
 
+    var renderSlots = function(){
+        
+        if(!angular.isArray($scope.slots) || !$scope.slots.length){
+            return;
+        }
+        var tableRect = $element[0].getBoundingClientRect();
+        var slots = $element.find('.slots .slot');
+
+        for (var i = 0; i < $scope.slots.length; i++) {
+            
+            var tds = $scope.slots[i].tds;
+            
+            var topRect=tds[0][0].getBoundingClientRect();
+            var bottomRect=tds[tds.length-1][0].getBoundingClientRect();
+
+            slots.eq(i).css({
+                'left' : topRect.left-tableRect.left,
+                'top' : topRect.top-tableRect.top,
+                'width' : bottomRect.width,
+                'height' : bottomRect.top - topRect.top + bottomRect.height,
+            });
+        }
+    }
+
     /**
      * Setup apparence of available slot
      * @param  {DOMNode} td element
@@ -335,6 +365,10 @@ angular.module('ca.schedule',['ca.schedule.templates'])
             return;
         }
 
+        selecting = true;
+
+        $scope.style.pointer = 'row-resize';
+
         $document.bind( 'mousemove', onCellMove );
         $document.bind( 'mouseup', onCellUp );
     };
@@ -362,6 +396,10 @@ angular.module('ca.schedule',['ca.schedule.templates'])
 
         var startIndex = $scope.startCell.parent().index();
         var endIndex = cell.parent().index();
+
+        if(startIndex === endIndex){
+            return;
+        }
 
         console.log(startIndex+'-'+endIndex);
 
@@ -415,6 +453,8 @@ angular.module('ca.schedule',['ca.schedule.templates'])
      */
     var onCellUp = function(event) {
         
+        selecting=false;
+        
         if(!$scope.interval) {
             return;
         }
@@ -444,9 +484,28 @@ angular.module('ca.schedule',['ca.schedule.templates'])
         $scope.startCell = null;
 
         $scope.interval = false;
+    };
 
-        setPendingSlotDone();
+    var onSlotHover = function(index){
 
+        if( selecting ){
+            return;
+        }
+
+        for (var i = 0; i < $scope.slots[index]['tds'].length; i++) {
+            $scope.slots[index]['tds'][i].addClass('slot-hover');
+        }
+    };
+
+    var onSlotOut = function(index){
+
+        if( selecting ){
+            return;
+        }
+
+        for (var i = 0; i < $scope.slots[index]['tds'].length; i++) {
+            $scope.slots[index]['tds'][i].removeClass('slot-hover');
+        }
     };
 
     /**
@@ -474,7 +533,13 @@ angular.module('ca.schedule',['ca.schedule.templates'])
             $scope.ngModel.$setViewValue($data.slots);
         }
 
+        setPendingSlotDone(slot, $scope.slots.length);
+
         $scope.slots.push(slot);
+
+        $scope.$digest();
+
+        return $scope.slots.length - 1;
     };
 
     var isBooked = function(cell){
@@ -522,11 +587,13 @@ angular.module('ca.schedule',['ca.schedule.templates'])
         tds=[];
     };
 
-    var setPendingSlotDone = function(){
+    var setPendingSlotDone = function( slot, index ){
         for (var i = 0; i < tds.length; i++) {
             tds[i].removeClass('schedule-cell-selecting')
-                  .addClass('schedule-cell-selected');
+                  .addClass('schedule-cell-selected')
+                  .data('slot-index', index);
         }
+        slot.tds=tds;
         tds=[];
     };
 
@@ -561,7 +628,15 @@ angular.module('ca.schedule',['ca.schedule.templates'])
      */
     $scope.cellover = function( event ) {
         var cell = angular.element(event.currentTarget);
+
+        if( typeof(cell.data('slot-index')) != 'undefined' ){
+            onSlotHover(cell.data('slot-index'));
+        }
+
         if(!cell.hasClass('available')){ return; }
+
+        cell.addClass('cell-hover');
+
         cell.parent().first().addClass('info-cell-highlight');
         var daterows = table.find('.date-row');
         daterows.eq(0).find('td').eq( cell.index() ).addClass('info-cell-highlight');
@@ -575,6 +650,13 @@ angular.module('ca.schedule',['ca.schedule.templates'])
      */
     $scope.cellout = function( event ) {
         var cell = angular.element(event.currentTarget);
+
+        if( typeof(cell.data('slot-index')) != 'undefined' ){
+            onSlotOut(cell.data('slot-index'));
+        }
+
+        cell.removeClass('cell-hover');
+
         if(!cell.hasClass('available')){ return; }
         cell.parent().first().removeClass('info-cell-highlight');
         var daterows = table.find('.date-row');
@@ -607,6 +689,8 @@ angular.module('ca.schedule',['ca.schedule.templates'])
         $document.unbind( 'mousemove', onCellMove );
         $document.unbind( 'mouseup', onCellUp );
 
+        tds.push(cell);
+
         trigger(date, time, getCellEndTime(cell));
     };
 
@@ -615,9 +699,16 @@ angular.module('ca.schedule',['ca.schedule.templates'])
         $log.debug('Init booking widget');
 
         $scope.$watch('step', updateHours);
-        $scope.$watch('userStep', onUserStepChanged);
+        $scope.$watch('userStep', function(scale){
+            if(!scale){
+                return;
+            }
+            matrix.scale = scale;
+        });
         $scope.$watch('userDate', onUserDateChanged);
-
+        $scope.$watchCollection('slots', function(){
+            $timeout(renderSlots)
+        });
         $scope.$watch('availability', onAvailabilityChange);
 
         $scope.$watch('ngModel', onNgModelController);
@@ -625,6 +716,21 @@ angular.module('ca.schedule',['ca.schedule.templates'])
         if($scope.allowScrolling) {
             enableMouseScrolling();
         }
+
+        matrix.on('matrixValidated', function(){
+            $element.html('').append(matrix.table);
+        });
+
+        var date = new Date();
+        date.setDate(date.getDate()+1);
+
+        matrix.availability = [{
+            date:new Date(),
+            slots:[[0,1380]]
+        },{
+            date:date,
+            slots:[[0,1380]]
+        },];
 
         updateWeek();
 

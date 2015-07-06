@@ -1,5 +1,10 @@
 <div class="ca-schedule" ng-init="init()">
-    <table cellspacing="0" cellpading="0">
+    <div class="slots">
+        <div ng-repeat="slot in slots" class="slot">
+            dsfsdf {{slot.date}}
+        </div>
+    </div>
+    <!-- <table cellspacing="0" cellpading="0" ng-style="style">
         <tr class="date-row">
             <td class="info-cell empty-cell"></td>
             <td class="info-cell date-cell" ng-repeat="day in days">{{day}}</td>
@@ -21,5 +26,5 @@
                 ng-mousedown="onCellDown($event)">
             </td>
         </tr>
-    </table>
+    </table> -->
 </div>

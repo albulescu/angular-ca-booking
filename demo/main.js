@@ -1,12 +1,12 @@
 angular.module('demo', ['ca.schedule','ca.console'])
 
 .config(function($consoleProvider) {
-    $consoleProvider.overrideBrowserConsole();
+    //$consoleProvider.overrideBrowserConsole();
 })
 
 .controller('DemoScheduleController', function($scope, $console){
 
-    $scope.userStep = '30m';
+    $scope.userStep = 60;
     
     $scope.slots = null;
 

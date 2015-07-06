@@ -5,6 +5,7 @@ angular.module('ca.schedule')
 .directive('schedule', function(){
     return {
         restrict : 'E',
+        replace:true,
         templateUrl: 'ca-schedule/directive/schedule.html',
         controller: 'BookingController',
         require: ['?^ngModel'],

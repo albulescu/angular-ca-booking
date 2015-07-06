@@ -1,6 +1,8 @@
 @schedule-background:#F5F5F5;
 @schedule-available-background:#8BD19B;
 @schedule-highlight:#DDD;
+@schedule-dissalowed:red;
+@schedule-head-background:#DDD;
 
 .ca-schedule {
     
@@ -27,13 +29,28 @@
     table {
         
         border-collapse: collapse;
+        border:1px solid @schedule-head-background;
+        thead {
+            
+            th {
+                background:@schedule-head-background;
+                width:100px;
+                &:first-child{
+                    width:auto;
+                }
+
+                &.today{
+                    background:#CACACA;
+                }
+            }
+        }
         
-        tr td {
-            padding:3px;
-            border-bottom:1px solid @schedule-highlight;
+        .time {
+            background:@schedule-head-background;
+            padding:0px 5px;
         }
 
-        tr.not-sharp td {
+        tr.nsharp td {
             border-bottom:1px dashed @schedule-highlight;
         }
 
@@ -41,58 +58,16 @@
             border-bottom:1px solid @schedule-highlight;
         }
 
-        .date-cell:last-child {
-            border-right:3px solid #84589B;
+        .slot {
+            height:30px;
+            border-bottom:1px solid @schedule-highlight;
+            border-right:1px solid @schedule-highlight;
+            &:last-child{
+                border-right:0;
+            }
+            &.available{
+                background:green;
+            }
         }
-        
-        .time-cell {
-            border-left:1px solid #84589B;
-        }
-
-        .empty-cell {
-            border-bottom:1px solid transparent;
-        }
-
-        .info-cell-highlight td:first-child,
-        .date-row .info-cell-highlight {
-            background:lighten(#84589B, 10%);
-        }
-    }
-
-    .info-cell {
-        background:#84589B;
-        color:#FFF;
-        text-align:center;
-        border-right:3px solid #dcdcdc;
-    }
-
-    .schedule-cell {
-        border-right:3px solid @schedule-highlight;
-    }
-
-    .available.schedule-cell-hover {
-        background:@schedule-highlight;
-        color:#FFF;
-        cursor:pointer;
-    }
-
-
-    .has-availability .available {
-        background:@schedule-available-background;
-        &.schedule-cell-hover {
-            background:lighten(@schedule-available-background,10%);
-        }
-    }
-
-    .available.schedule-cell-selecting {
-        background:darken(@schedule-highlight, 1%);
-    }
-    
-    .available.schedule-cell-selected {
-        background:darken(@schedule-highlight, 10%);
-    }
-
-    .has-availability .available.schedule-cell-selected {
-        background:darken(@schedule-available-background, 10%);
     }
 }
